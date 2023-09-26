@@ -1,0 +1,35 @@
+      [Nr]      [ml]      [pH]       [s]      dy/dx
+         0    0.0000     6.532     0.000         OO
+         1    0.0500     6.545    81.437      0.251
+         2    0.1000     4.816   162.714    -34.572
+         3    0.1500     4.246   243.991    -11.401
+         4    0.2000     3.891   325.267     -7.094
+         5    0.2500     3.644   406.554     -4.941
+         6    0.3000     3.450   487.841     -3.894
+         7    0.3500     3.302   569.128     -2.950
+         8    0.4000     3.184   650.415     -2.360
+         9    0.4500     3.096   731.702     -1.770
+        10    0.5000     3.008   812.979     -1.755
+        11    0.5500     2.933   894.266     -1.490
+Date                   : 06-20-2023
+Time                   : 19:12:26
+Measure point          : 1
+File name              : c:\multi_t\data\13620010.mtd
+Method file            : c:\multi_t\sol1.mtm
+Method Multi_T         : pH equivalence point [PEQ]
+Method created         : 19.04.18  14:33:21
+Method changed / User  : 20.06.23  19:12:20 / 
+User                   : 
+Sample name            : Sample # 1
+Sample-rem             : 
+Sensor input           : INP # 1 : pH:Electrode ID 9999
+Titration burette      : ADR # 1 : Tuni-00693394:0.1M HCl
+Dosing burette         : not used:Solution A
+W01                    :     1.000000
+W02                    :     1.000000
+W03                    :     1.000000
+DataSort1              : DS1
+DataSort12             : DS12
+DataSort13             : DS13
+TabStatus              : TS
+Status                 : 128

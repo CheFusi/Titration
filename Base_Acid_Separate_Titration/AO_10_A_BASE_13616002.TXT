@@ -1,0 +1,41 @@
+      [Nr]      [ml]      [pH]       [s]      dy/dx
+         0    0.0000     6.171     0.000         OO
+         1    0.0500     6.539    81.477      7.357
+         2    0.1000     7.215   162.794     13.507
+         3    0.1500     7.672   244.131      9.152
+         4    0.2000     8.761   325.468     21.775
+         5    0.2500     8.963   406.815      4.046
+         6    0.3000     9.143   488.162      3.590
+         7    0.3500     9.850   569.489     14.139
+         8    0.4000     9.958   650.816      2.163
+         9    0.4500    10.100   732.163      2.840
+        10    0.5000    10.423   813.500      6.474
+        11    0.5500    10.497   894.847      1.471
+        12    0.6000    10.600   975.913      2.060
+        13    0.6500    10.762  1057.240      3.237
+        14    0.7000    10.827  1138.307      1.309
+        15    0.7500    10.894  1219.644      1.339
+        16    0.8000    10.983  1300.991      1.766
+        17    0.8500    11.039  1382.328      1.133
+Date                   : 06-16-2023
+Time                   : 11:05:26
+Measure point          : 1
+File name              : c:\multi_t\data\13616002.mtd
+Method file            : c:\multi_t\sol1.mtm
+Method Multi_T         : pH equivalence point [PEQ]
+Method created         : 19.04.18  14:33:21
+Method changed / User  : 16.06.23  10:36:35 / 
+User                   : 
+Sample name            : Sample # 1
+Sample-rem             : 
+Sensor input           : INP # 1 : pH:Electrode ID 9999
+Titration burette      : ADR # 2 : Tuni-00693395:0.1M NaOH
+Dosing burette         : not used:Solution A
+W01                    :     1.000000
+W02                    :     1.000000
+W03                    :     1.000000
+DataSort1              : DS1
+DataSort12             : DS12
+DataSort13             : DS13
+TabStatus              : TS
+Status                 : 128

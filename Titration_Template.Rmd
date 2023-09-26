@@ -1,0 +1,543 @@
+---
+title: "Titration_Template"
+output: html_document
+date: "2022-11-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r, message=FALSE}
+
+libs_1<-c("tidyverse","knitr","psych","reshape2","rmarkdown")
+
+#data manipulation/exploration
+libs_2<-c("readxl","readr","tidyr","GGally","naniar","readr")
+
+
+# plotting
+libs_3<-c("ggplot2","viridis","ggpubr","cowplot")#,"ggthemr") 
+
+#ggpubr = package for publishing
+#cowplot=  #to create compounded figures
+
+#tables
+libs_4<-c("dplyr","stargazer","xlsx","ggplot2","scales","extrafont","writexl")
+
+
+libs<-c(libs_1,libs_2,libs_3,libs_4)
+
+lapply(libs,require, character.only=TRUE)
+
+library(dplyr)
+library(purrr)
+```
+
+```{r}
+getwd()
+
+Background_ele<-read.delim("211008_0.1M_NaCl_0.05mL_min.TXT",header = TRUE, sep = "")
+
+Background_ele<-data.frame(Background_ele[1:85,])
+
+Background_ele[] <- lapply(Background_ele, function(x) as.numeric(as.character(x)))
+
+#write_xlsx(Background_ele,"/Users/soliverfusi/OneDrive/Desktop/Fusi/Acid_Base_Titration/Titration/Background_ele.xlsx")
+```
+
+```{r}
+files <- list.files("Base_Acid_Separate_Titration", full.names = TRUE)
+str(files)
+```
+
+### Gathering Titration Data
+
+```{r}
+
+the_names<- data.frame(list.files(path="Base_Acid_Separate_Titration", pattern="*.TXT", full.names=TRUE)) 
+
+colnames(the_names)=("ID")
+
+the_names_1<-the_names%>%
+  mutate(ID=substr(ID, 30,41))
+
+
+df_1 <- list.files(path="Base_Acid_Separate_Titration", pattern="*.TXT", full.names=TRUE) %>% 
+  lapply(read.csv,header=TRUE, sep="",col.names=c("Sample","Vol_Titrant","pH","Time_s","dpH_dt")) %>%
+  lapply(head,-28)
+
+#converts the "oo" chatacter into NA, and the remainder of the dataframe into numeric
+df_1 <- lapply(df_1, function(d) {
+  d[1:5] <- lapply(d[1:5], as.numeric); d
+  })
+```
+
+\*currently choosing to retain things as a list because the length of each titration is different
+
+-   metadata: starts with "Date" and ends with " Status: 128" and is the last 22 lines
+
+### Mol OH-, Concentration H+, OH-, Volume Solution, Apparent Net Proton Charge
+
+-   H+ = (for now) 10\^-pH
+
+```{r}
+#defining simplified relationship between pH and [H+]
+
+
+mol_OH_or_H_added_func<-function(x){
+  (0.1*x)/1000
+}
+
+ten_to<-function(x){
+  10^-x
+}
+
+conc_OH_func<-function(x){
+  (10^-14)/(10^-x)
+}
+
+vol_sol_func<-function(x){
+  (30+x)/1000
+}
+
+net_app_H_func <- function(dataframe) {
+  net_app_H<-as.data.frame(((-1*dataframe$H_Conc*dataframe$vol_soln)-dataframe$mol_OH+(dataframe$OH_Conc*dataframe$vol_soln))*1000)
+  #return(data.frame(net_app_H = net_app_H))
+}
+
+#mol_OH or H added
+mol_OH_or_H<-df_1 %>%
+  lapply("[",2) %>%
+  lapply(mol_OH_or_H_added_func) 
+  
+H_Conc<- df_1 %>%
+  lapply("[",3) %>%
+  lapply(ten_to)
+
+OH_Conc<- df_1 %>%
+  lapply("[",3) %>%
+  lapply(conc_OH_func)
+
+vol_soln<-df_1 %>%
+  lapply("[",2) %>%
+  lapply(vol_sol_func) 
+
+df_2<-mapply(cbind, mol_OH_or_H, H_Conc,OH_Conc,vol_soln, SIMPLIFY=FALSE)
+names_col<-c("mol_OH_or_H","H_Conc","OH_Conc","vol_soln")
+df_2<-lapply(df_2, setNames, names_col)
+
+df_3<-mapply(cbind,df_1,df_2, SIMPLIFY=FALSE)
+
+# Call the custom function using lapply to apply it to each dataframe
+net_app_H<- lapply(df_3, net_app_H_func)
+net_app_H<-lapply(net_app_H, setNames,"net_app_H")
+  
+df_4<-mapply(cbind,df_3,net_app_H, SIMPLIFY=FALSE)
+#lapply("[", , names_col) %>% #extracts the 4 columns 
+  #explanation: https://stackoverflow.com/questions/47443365/how-to-extract-certain-columns-from-a-list-of-data-frames 
+
+```
+
+```{r}
+# Sample 'names' dataframe
+
+naming<-as.character(seq(1,74))
+
+names_df <- data.frame(
+  dataframe = naming,
+  identity = the_names_1
+)
+
+# Create an empty list to store the named dataframes
+df_5 <- list()
+
+# Assign names to the dataframes in the results list
+for (i in 1:length(df_4)) {
+  dataframe_name <- names_df$ID[i]
+  df_5[[dataframe_name]] <- df_4[[i]]
+}
+
+# Combine the result dataframes and add a column to distinguish between dataframes
+
+#bind_rows function in the dplyr package is used to combine multiple dataframes into a single dataframe by stacking them on top of each other.
+
+#.id = "ID" specifies that a new column named "ID" should be added to the combined dataframe. This column will contain information about the source dataframe for each 
+
+net_app_combined <- bind_rows(df_5, .id = "SSN") 
+
+output_vars<-read_excel("/Users/soliverchefusi/Library/CloudStorage/OneDrive-Personal/Desktop/Fusi/Sorption/AK_to_AO_Isotherm/Isotherm_FTIR/IR_Dependent_Variables.xlsx")
+
+
+# Function to find the matching sample ID
+find_matching_sample <- function(id, df2) {
+  for (sample_id in df2$SSN) {
+    if (grepl(sample_id, id)) {
+      return(sample_id)
+    }
+  }
+  return(NA)
+}
+
+# Merge df1 and df2 based on partial string matching
+df_6 <- net_app_combined %>%
+  mutate(matched_sample = sapply(SSN, find_matching_sample, output_vars))
+
+# Merge the data based on the matched_sample column
+df_6 <- left_join(df_6, output_vars, by = c("matched_sample" = "SSN"))
+
+# Remove the temporary matched_sample column
+df_6 <- df_6 %>%
+  select(-matched_sample)
+
+```
+
+## Correcting for Ionic Strength
+
+Libraries
+
+```{r}
+library(CHNOSZ)
+library(readxl)
+```
+
+```{r}
+Ions <- read_excel("Base_Acid_Separate_Titration/End_Anion_Concentration.xlsx")
+
+#I think I accidentally mislabeled the sample NaOH, it should actually be the HCl sample (because NaOH wouldn't have Cl in it)
+
+Ions_1<-Ions[c(14:93),c(2,7)]
+colnames(Ions_1)<-c("SSN","Cl_mg_L")
+
+Ions_2<-Ions[c(95:98),c(2,7)]
+colnames(Ions_2)<-c("SSN","Cl_mg_L")
+
+Ions_1 <- Ions_1 %>% filter(SSN != "MQ") %>%
+  filter(SSN != "RESET")
+
+```
+
+Converting Units from mg/L to mol Cl
+
+```{r}
+
+MW_Cl <- 35.453
+
+Ions_1 <- Ions_1 %>% mutate(Cl_mg_L = as.numeric(Cl_mg_L)) %>%
+  mutate(Cl_mol_L = Cl_mg_L / MW_Cl/1000/3) 
+
+#changing the ID format from, e.g. AK05A to AK_05_A
+Ions_1$SSN <- gsub("([A-Z]+)(\\d+)([A-Z]+)", "\\1_\\2_\\3", Ions_1$SSN)
+
+Ions_2 <- Ions_2 %>% mutate(Cl_mg_L = as.numeric(Cl_mg_L)) %>%
+  mutate(Cl_mol_L = Cl_mg_L / MW_Cl/1000/3)
+
+#TEMPORARILY: dividing by this factor of 3 until I can identify the source of what seems like an error
+
+```
+
+Currently noticing that the NaCl solution, for instance, which should have a concentration of 0.1M is reading about 0.35M ... unclear if this is a dilution error or what.
+
+-   So, there seems to be an issue of a factor of 3...
+
+```{r}
+
+#Adding the Cl concentration to the main dataframe ... 
+
+df_7 <- df_6 %>%
+  mutate(matched_sample = sapply(SSN, find_matching_sample, Ions_1))
+
+# Merge the data based on the matched_sample column
+df_7 <- left_join(df_7, Ions_1, by = c("matched_sample" = "SSN"))
+
+# Remove the temporary matched_sample column
+df_7 <- df_7 %>%
+  select(-matched_sample) %>%
+  select(-Cl_mg_L)
+```
+
+TEMPORARILY CREATING AN Na COLUMN WHILE WE AWAIT THE CATION DATA (0.98\* Cl column)
+
+```{r}
+
+df_7<- df_7 %>%
+  mutate(Na_mol_L = 0.98*Cl_mol_L)
+```
+
+## Calculating Activity Coefficient
+
+```{r}
+
+
+net_app_H_func_corrected <- function(dataframe) {
+  net_app_H_corrected<-as.data.frame(((-1*dataframe$H_Conc_corrected*dataframe$vol_soln)-dataframe$mol_OH_or_H+(dataframe$OH_Conc*dataframe$vol_soln))*1000)
+  #return(data.frame(net_app_H = net_app_H))
+}
+
+#correcting formula for mol strong acid addec (here )
+net_app_H_func_acid_corrected <- function(dataframe) {
+  net_app_H_corrected<-as.data.frame(((-1*dataframe$H_Conc_corrected*dataframe$vol_soln)+dataframe$mol_OH_or_H+(dataframe$OH_Conc*dataframe$vol_soln))*1000)
+  #return(data.frame(net_app_H = net_app_H))
+}
+
+df_7 <- df_7 %>%
+  mutate(Ionic_Strength = 0.5 * (((1^2)*Na_mol_L)+((-1)^2*Cl_mol_L))) %>%
+  mutate(gamma = 10^(-0.509*sqrt(Ionic_Strength))) %>%
+  mutate(H_Conc_corrected = (10^((-1)*pH))/gamma)
+
+#correcting for both activity and using the two diff equations depending on whether it's and acid or a base titration 
+
+df_ACID<-df_7 %>%
+    filter(str_detect(SSN,"_ACID")) %>%
+  mutate(net_app_H_corrected = net_app_H_func_acid_corrected(.)) %>%
+  rename_at(26, ~ "net_app_H_corrected") %>% 
+  mutate(net_app_H_corrected = as.numeric(unlist(net_app_H_corrected)))
+ # rename_with(~ "net_app_H_corrected", .cols = 26)
+
+
+df_BASE<-df_7 %>%
+    filter(str_detect(SSN,"_BASE")) %>%
+  mutate(net_app_H_corrected = net_app_H_func_corrected(.)) %>%
+  rename_at(26, ~ "net_app_H_corrected") %>% 
+  mutate(net_app_H_corrected = as.numeric(unlist(net_app_H_corrected)))
+
+df_8<-rbind(df_ACID,df_BASE)
+
+```
+
+### Plot of all duplicated of both acid and base titrations
+
+```{r}
+plot_all <- ggplot(df_8, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Combined Acid-Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge (mmol charge /g biochar)") +
+    theme_bw()+
+      #eliminates background, gridlines, and chart border
+    theme(
+        plot.background = element_blank()
+        ,panel.grid.major = element_blank()
+        ,panel.grid.minor = element_blank()
+    )
+plot_all    
+```
+
+```         
+```
+
+```{r}
+
+#subselecting the samples based on acid or base and replicate
+
+titr_A_base<-df_8%>%
+  filter(str_detect(SSN,"A_BASE"))
+
+titr_B_base<-df_8%>%
+  filter(str_detect(SSN,"B_BASE"))
+
+titr_C_acid<-df_8%>%
+  filter(str_detect(SSN,"C_ACID"))
+
+titr_D_acid<-df_8%>%
+  filter(str_detect(SSN,"D_ACID"))
+
+```
+
+### Blank Correction
+
+```{r}
+blank_NaCl<- read.csv("Base_Acid_Separate_Titration/Water_Blank.csv")
+
+
+correct_sample_pH <- function(sample_pH1, sample_pH2, sample_mol1, sample_mol2, blank_data) {
+  # Calculate the pH change in the sample titration
+  pH_change_sample <- sample_pH2 - sample_pH1
+  
+  # Find the interpolated pH values in the blank data for sample_pH1 and sample_pH2
+  interpolated_pH_blank <- spline(blank_data$mol_blank, blank_data$pH_blank, n = 1000)
+  pH_blank1 <- interpolated_pH_blank$y[which.min(abs(interpolated_pH_blank$x - sample_mol1))]
+  pH_blank2 <- interpolated_pH_blank$y[which.min(abs(interpolated_pH_blank$x - sample_mol2))]
+  
+  # Calculate the pH change in the blank titration
+  pH_change_blank <- pH_blank2 - pH_blank1
+  
+  # Calculate the portion of titrant used to change the blank's pH
+  fraction_used_in_blank <- pH_change_blank / pH_change_sample
+  
+  # Calculate the corrected pH in the sample
+  corrected_sample_pH2 <- sample_pH2 - pH_change_sample * fraction_used_in_blank
+  
+  return(corrected_sample_pH2)
+}
+
+# Example usage
+sample_pH1 <- 4
+sample_pH2 <- 5
+sample_mol1 <- 0.5
+sample_mol2 <- 0.6
+blank_data <- data.frame(
+  mol_blank = c(0.05, 0.1, 0.15, 0.2, 0.25),  # Add your blank data points
+  pH_blank = c(3, 3.4, 3.6, 3.8, 4.1)         # Corresponding pH measurements
+)
+
+corrected_sample_pH <- correct_sample_pH(sample_pH1, sample_pH2, sample_mol1, sample_mol2, blank_data)
+
+```
+
+## Plots
+
+```{r}
+library(RColorBrewer)
+```
+
+```{r}
+
+plot_A_base <- ggplot(titr_A_base, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_A_base      
+```
+
+```{r}
+
+plot_B_base <- ggplot(titr_B_base, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_B_base
+```
+
+```{r}
+
+plot_C_acid <- ggplot(titr_C_acid, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Acid Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_C_acid
+```
+
+```{r}
+plot_D_acid <- ggplot(titr_D_acid, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Acid Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_D_acid
+```
+
+```{r}
+plot_B_base_dpH <- ggplot(titr_B_base, aes(x = pH, y = dpH_dt, color=O_C)) +
+  geom_line() +
+  labs(title = "Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_B_base_dpH
+```
+
+```{r}
+library(gridExtra)
+```
+
+```{r}
+Acid_Base_plot <- grid.arrange(plot_A_base, plot_D_acid, ncol = 2)
+Acid_Base_plot
+```
+
+```{r}
+
+combined_A_D <- rbind(titr_A_base, titr_D_acid)
+
+plot_combined_A_D <- ggplot(combined_A_D, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Acid Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_combined_A_D
+```
+
+```{r}
+
+combined_B_C <- rbind(titr_B_base, titr_C_acid)
+
+plot_combined_B_C <- ggplot(combined_B_C, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+  geom_point() +
+  scale_color_viridis()+
+  labs(title = "Acid Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_combined_B_C
+```
+
+```{r}
+
+AK_Only <- df_8%>%
+    filter(str_detect(SSN,"AK_")) 
+
+
+plot_combined_AK <- ggplot(AK_Only, aes(x = pH, y = net_app_H_corrected, color=O_C))+ #, size = SSN)) +
+  geom_point() +
+    scale_color_viridis()+
+  
+  labs(title = "AK: Softwood Pellet Acid-Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge (mmol charge/g biochar)") +
+  theme_bw()+
+      #eliminates background, gridlines, and chart border
+    theme(
+        plot.background = element_blank()
+        ,panel.grid.major = element_blank()
+        ,panel.grid.minor = element_blank()
+    )+
+  guides(size = FALSE)
+plot_combined_AK
+```
+
+```{r}
+
+AM_Only <- df_8%>%
+    filter(str_detect(SSN,"AM_")) 
+
+
+plot_combined_AM <- ggplot(AM_Only, aes(x = pH, y = net_app_H_corrected, color=O_C, size = SSN)) +
+  geom_point() +
+  labs(title = "Acid Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_combined_AM
+```
+
+```{r}
+
+AO_Only <- df_8%>%
+    filter(str_detect(SSN,"AO_")) 
+
+
+plot_combined_AO <- ggplot(AO_Only, aes(x = pH, y = net_app_H_corrected, color=O_C, size = SSN)) +
+  geom_point() +
+  labs(title = "Acid Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge") +
+  theme_minimal()
+plot_combined_AO
+```
