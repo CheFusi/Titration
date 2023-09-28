@@ -532,7 +532,6 @@ plot_combined_AM
 AO_Only <- df_8%>%
     filter(str_detect(SSN,"AO_")) 
 
-
 plot_combined_AO <- ggplot(AO_Only, aes(x = pH, y = net_app_H_corrected, color=O_C, size = SSN)) +
   geom_point() +
   labs(title = "Acid Base Titration",
