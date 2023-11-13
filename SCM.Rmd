@@ -1,0 +1,102 @@
+---
+title: "SCM"
+output: html_document
+date: "2023-10-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r, message=FALSE}
+
+libs_1<-c("tidyverse","knitr","psych","reshape2","rmarkdown")
+
+#data manipulation/exploration
+libs_2<-c("readxl","readr","tidyr","GGally","naniar","readr")
+
+
+# plotting
+libs_3<-c("ggplot2","viridis","ggpubr","cowplot")#,"ggthemr") 
+
+#ggpubr = package for publishing
+#cowplot=  #to create compounded figures
+
+#tables
+libs_4<-c("dplyr","stargazer","xlsx","ggplot2","scales","extrafont","writexl")
+
+
+libs<-c(libs_1,libs_2,libs_3,libs_4)
+
+lapply(libs,require, character.only=TRUE)
+
+library(dplyr)
+library(purrr)
+library(gridExtra)
+```
+
+## Loading Files
+
+Including L of titrant, wt and sim columns
+
+```{r}
+ls_1<- readRDS("Titration_together.rds")
+ls_2<- list_1%>% 
+  lapply("[",c(2,3))
+
+#convert mL to L
+ls_3 <- lapply(ls_2, function(df) {
+  df[, 3] <- df[, 1] / 1000
+  return(df)
+})
+
+# add wt and SIM columns which just contain 1's
+ls_4 <- lapply(ls_3, function(df) {
+  df[, c(4,5)] <- 1
+  return(df)
+})
+    
+#rename columns
+names_col<-c("[ml]","pH","L_titrant","sim","wt")
+ls_4<-lapply(ls_4, setNames, names_col)
+```
+
+saving each dataframe with the appropriate name
+
+```{r}
+
+the_names<- data.frame(list.files(path="Base_Acid_Separate_Titration", pattern="*.TXT", full.names=TRUE)) 
+
+colnames(the_names)=("ID")
+
+the_names_1<-the_names%>%
+  mutate(ID=substr(ID, 30,41))
+
+naming<-as.character(seq(1,74))
+
+names_df <- data.frame(
+  dataframe = naming,
+  identity = the_names_1
+)
+
+# Create an empty list to store the named dataframes
+ls_5 <- list()
+
+# Assign names to the dataframes in the results list
+for (i in 1:length(ls_4)) {
+  dataframe_name <- names_df$ID[i]
+  ls_5[[dataframe_name]] <- ls_4[[i]]
+}
+
+
+# Create a new folder 
+dir.create("SCM_inputs")
+
+# Save each named dataframe in the list as individual .dat files
+lapply(names(ls_5), function(name) {
+  write.table(ls_5[[name]], file = paste0("SCM_inputs/",name, ".dat"), sep = "\t", quote = FALSE, row.names = FALSE)
+})
+
+```

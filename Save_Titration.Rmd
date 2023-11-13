@@ -282,13 +282,12 @@ net_app_H_func_corrected <- function(dataframe) {
   #return(data.frame(net_app_H = net_app_H))
 }
 
-#correcting formula for mol strong acid added (here )
+#correcting formula for mol strong acid addec (here )
 net_app_H_func_acid_corrected <- function(dataframe) {
   net_app_H_corrected<-as.data.frame(((-1*dataframe$H_Conc_corrected*dataframe$vol_soln)+dataframe$mol_OH_or_H+(dataframe$OH_Conc*dataframe$vol_soln))*1000)
   #return(data.frame(net_app_H = net_app_H))
 }
 
-#adding the Activity Coefficient
 df_7 <- df_7 %>%
   mutate(Ionic_Strength = 0.5 * (((1^2)*Na_mol_L)+((-1)^2*Cl_mol_L))) %>%
   mutate(gamma = 10^(-0.509*sqrt(Ionic_Strength))) %>%
@@ -329,10 +328,10 @@ ALL_no_AL<-df_8 %>%
 
 plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
   geom_point(shape=16, size=5) +
-  #scale_color_viridis()+
+  scale_color_viridis()+
   labs(#title = "Combined Acid-Base Titration",
        x = "pH",
-       y = "Net Apparent Proton Charge (mmol charge /g biochar)") +
+       y = "Proton Charge (mmol charge /g biochar)") +
     theme_bw()+
       #eliminates background, gridlines, and chart border
     theme(
@@ -343,8 +342,7 @@ plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
         plot.background = element_blank()
         ,panel.grid.major = element_blank()
         ,panel.grid.minor = element_blank()
-    )+
-    scale_color_gradient(low = "yellow", high = "darkblue")
+    )
 plot_all    
 ```
 
@@ -410,205 +408,10 @@ corrected_sample_pH <- correct_sample_pH(sample_pH1, sample_pH2, sample_mol1, sa
 
 ```
 
-### Net App Difference between pH 3 and pH 11 
-
-```{r}
-
-# Load the dplyr library if not already loaded
-library(dplyr)
-
-
-# Find the maximum sample number for each group
-max_samples <- ALL_no_AL %>%
-  group_by(SSN) %>%
-  summarise(
-    max_sample = max(Sample, na.rm = TRUE),
-    net_app_H_max = net_app_H[which.max(Sample)]
-  )
-
-
-max_samples  <- max_samples  %>%
-  mutate(
-    Type_ox = gsub("_[A-D]_[A-Z]+$", "", SSN)  # Extract the common part of SSN
-    #group_num = as.numeric(gsub("[^0-9]", "", SSN))  # Extract the numeric part of SSN
-  )
-
-net_app_diff_df <- max_samples %>%
-  group_by(Type_ox) %>%
-  filter(grepl("_C_ACID", SSN) | grepl("_A_BASE", SSN)) %>%
-  summarise(
-    net_app_H_diff_C_A = net_app_H_max[grepl("_C_ACID", SSN)] -
-                      net_app_H_max[grepl("_A_BASE", SSN)]
-  )
-
-net_app_diff_df  <- net_app_diff_df  %>%
-  left_join(
-    max_samples %>%
-      group_by(Type_ox) %>%
-      filter(grepl("_D_ACID", SSN) | grepl("_B_BASE", SSN)) %>%
-      summarise(
-        net_app_H_diff_D_B = net_app_H_max[grepl("_D_ACID", SSN)] -
-                          net_app_H_max[grepl("_B_BASE", SSN)]
-      ),
-    by = "Type_ox"
-  )
-
-net_app_diff_df  <- net_app_diff_df %>%
-  mutate(net_app_H_diff_avg_abs = abs(rowMeans(select(., starts_with("net_app_H_diff")), na.rm = TRUE)))
-
-
-
- ALL_no_AL <-  ALL_no_AL %>%
-  left_join(
-    net_app_diff_df  %>%
-      group_by(Type_ox)
-  )
-
-
-```
-
-####  Combining with main Isotherm DF
-
-```{r}
-
-ALL_Biochars<-readRDS("/Users/soliverchefusi/Library/CloudStorage/OneDrive-Personal/Desktop/Fusi/Sorption/AK_to_AO_Isotherm/Isotherm/ALL_Biochars.RDS")
-
- main_df <-  net_app_diff_df %>%
-  left_join(
-    ALL_Biochars  %>%
-      group_by(Type_ox)
-  )
-```
-
 ## Plots
 
 ```{r}
 library(RColorBrewer)
-```
-
-```{r}
-
-plot_nett_app_diff_1 <- ggplot(ALL_no_AL, aes(x = O_C, y = net_app_H_diff_avg_abs, color=Type)) +
-  geom_point(size=4) +
-  #scale_color_viridis()+
-  labs(title = "Net Apparent Proton Charge Difference",
-       x = "OC",
-       y = "Net Apparent Proton Charge Difference") +
-      theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 17), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =20),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank()
-    )+
-  scale_color_viridis_d()
-plot_nett_app_diff_1
-
-```
-
-```{r}
-
-main_df_high_dose <-main_df %>%
-  filter (Dose >= 70)
-
-main_df_high_dose$Dose <- as.factor(main_df_high_dose$Dose)
-
-plot_nett_app_diff_2 <- ggplot(main_df_high_dose, aes(x = net_app_H_diff_avg_abs, y = Q_NH4, color=OC)) +
-  geom_point(size=4) +
-  #scale_color_viridis()+
-  labs(title = "... ",
-       x = "Net Apparent Proton Charge Differenc",
-       y = "Q_NH4") +
-      theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 17), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =20),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank()
-    )+
-  scale_color_viridis()
-plot_nett_app_diff_2
-```
-
-```{r}
-
-
-plot_nett_app_diff_3 <- ggplot(main_df, aes(x = net_app_H_diff_avg_abs, y = OC, color=pH)) +
-  geom_point(size=4) +
-  #scale_color_viridis()+
-  labs(title = "... ",
-       x = "Net Apparent Proton Charge Difference",
-       y = "O:C") +
-      theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 17), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =20),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank()
-    )+
-  scale_color_viridis()
-plot_nett_app_diff_3
-```
-
-```{r}
-
-main_df_high_Q <-main_df %>%
-  filter (Q_NH4 >= 0 & Q_NH4 <= 7)
-
-plot_nett_app_diff_3B <- ggplot(main_df_high_Q, aes(x = OC, y = net_app_H_diff_avg_abs)) +
-  geom_point(size=4) +
-  #scale_color_viridis()+
-  labs(title = "... ",
-       x = "O:C",
-       y = "Net Apparent Proton Charge Difference") +
-      theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 17), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =20),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank()
-    )+
-  scale_color_viridis()
-plot_nett_app_diff_3B
-
-```
-
-```{r}
-plot_nett_app_diff_3C <- ggplot(main_df, aes(x = Dose, y = Q_NH4, color=net_app_H_diff_avg_abs)) +
-  geom_point(size=4) +
-  #scale_color_viridis()+
-  labs(title = "... ",
-       x = "Dose",
-       y = "Q_NH4") +
-      theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 17), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =20),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank()
-    )+
-  scale_color_viridis()
-plot_nett_app_diff_3C
 ```
 
 ```{r}
@@ -658,15 +461,6 @@ plot_D_acid <- ggplot(titr_D_acid, aes(x = pH, y = net_app_H_corrected, color=O_
 plot_D_acid
 ```
 
-## Removing AL from the dataframe since it behaves so differently
-
--   Technically, by IBI standards, it's not officially a biochar
-
-```{r}
-df_9 <-df_8 %>%
-  filter (Type != "AL")
-```
-
 ## dpH
 
 ```{r}
@@ -676,34 +470,8 @@ df_9 <-df_8 %>%
 
 plot_all_dpH <- ggplot(df_9, aes(x = pH, y = dpH_dt, group =SSN, color=O_C)) +
   geom_point()+
-  geom_path(aes(group = 1), size = 2) +
-    #facet_wrap(~ Type, scales = "free")+ 
-  labs(#title = "Base Titration",
-       x = "pH",
-       y = "dpH/ d vol titrant") +
-    theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 17), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =20),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank()
-    )+
-  scale_color_viridis()
- # scale_color_gradient(low = "yellow", high = "darkblue")
-plot_all_dpH 
-
-```
-
-```{r}
-
-plot_AK_all_together <- ggplot(df_9, aes(x = pH, y = dpH_dt, group =SSN, color=O_C)) +
-  geom_point()+
   geom_path(aes(group = 1), size = 1) +
-  facet_wrap(~ Type, scales = "free")+ 
+  #facet_wrap(~ Type, scales = "free")+ 
   labs(#title = "Base Titration",
        x = "pH",
        y = "dpH/ d vol titrant") +
@@ -719,7 +487,8 @@ plot_AK_all_together <- ggplot(df_9, aes(x = pH, y = dpH_dt, group =SSN, color=O
         ,panel.grid.minor = element_blank()
     )+
   scale_color_gradient(low = "yellow", high = "darkblue")
-plot_AK_all_together
+plot_all_dpH 
+
 ```
 
 ```{r}

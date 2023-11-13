@@ -16,7 +16,7 @@ Measure point          : 1
 File name              : c:\multi_t\data\13621008.mtd
 Method file            : c:\multi_t\sol1.mtm
 Method Multi_T         : pH equivalence point [PEQ]
-Method created         : 19.04.18  14:33:21
+Method created         : 19.04.18  14:33: 
 Method changed / User  : 21.06.23  18:08:51 / 
 User                   : 
 Sample name            : Sample # 1
