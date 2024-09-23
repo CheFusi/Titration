@@ -32,6 +32,7 @@ libs_4<-c("dplyr","stargazer","xlsx","ggplot2","scales","extrafont","writexl")
 
 libs<-c(libs_1,libs_2,libs_3,libs_4)
 
+
 lapply(libs,require, character.only=TRUE)
 
 library(dplyr)
@@ -365,6 +366,40 @@ df_8 <- df_8 %>%
 df_8  <- df_8 %>% mutate(d2Q_dpH2 = ifelse(is.infinite(d2Q_dpH2), NA, d2Q_dpH2))
 ```
 
+### Blank Correction
+
+```{r}
+
+blank_NaCl<- read.csv("Base_Acid_Separate_Titration/Water_Blank.csv")
+
+names(blank_NaCl) <- c("Vol_Titrant","pH")
+
+#mol_OH or H added
+blank_NaCl_df<-blank_NaCl %>%
+  mutate(mol_OH_or_H = mol_OH_or_H_added_func(.[[1]])) %>%
+  mutate(H_Conc = ten_to(.[[2]])) %>%
+  mutate(OH_Conc = conc_OH_func(.[[2]])) %>%
+  mutate(vol_soln = vol_sol_func(.[[1]])) 
+
+net_app_H_tot <- net_app_H_func(blank_NaCl_df)
+net_app_H_tot_1 <- data.frame(net_app_H_total = net_app_H_tot[[1]])
+
+blank_NaCl_df$net_app_H_corr <- net_app_H_tot_1$net_app_H_total-net_app_H_tot_1$net_app_H_total[1]
+
+# Interpolate blank data to match the pH values of the sample data
+#interpolated_blank <- approx(blank_NaCl_df$pH, blank_NaCl_df$net_app_H_corr, xout = df_8$pH)$y
+
+interpolated_blank <- approx(blank_NaCl_df$pH, blank_NaCl_df$net_app_H_corr, xout = df_8$pH, rule = 2)$y
+
+
+# Combine the interpolated blank data with the sample data
+df_8$interpolated_blank_charge <- interpolated_blank
+
+# Subtract the interpolated blank charge from the sample charge
+df_8$net_app_fin <- df_8$net_app_H_corrected - df_8$interpolated_blank_charge
+
+```
+
 ```{r}
 
 ALL_no_AL<-df_8 %>%
@@ -372,52 +407,85 @@ ALL_no_AL<-df_8 %>%
 
 ```
 
-## \*\* Plot of all duplicated of both acid and base titrations
+## \*\*\* Plot of all duplicated of both acid and base titrations
 
 ```{r, warning=FALSE}
 
-plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_H_corrected, color=O_C)) +
+plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_H_corrected, color = O_C)) +
+  geom_point(shape = 16, size = 5) +
+  labs(
+    x = "pH",
+    y = "Net Apparent Proton Charge \n (mmolc /g biochar)"
+  ) +
+  theme_classic(base_size = 30) +  # Increased base font size by 2 points
+  theme(
+    text = element_text(family = "Helvetica"),  # Changed font to sans-serif
+    legend.position = c(0.68, 0.72),  # Adjusted to a valid position within [0, 1]
+    axis.text.x = element_text(size = 26),  # Increased font size
+    axis.text.y = element_text(size = 26),
+    axis.title.x = element_text(margin = margin(t = 20), size = 26),
+    axis.title.y = element_text(margin = margin(r = 20), size = 26),
+    panel.border = element_rect(color = "black", fill = NA, size = 3),
+    legend.text = element_text(size = 22),  # Increased font size
+    legend.title = element_text(size = 26),
+    legend.direction = "horizontal",
+    legend.key.width = unit(1.5, "cm"),
+    legend.box.margin = margin(t = 5, r = 8, b = 5, l = 5),
+    legend.box.background = element_rect(color = "black", size = 2, linetype = "solid")  # Adjusted thickness to match plot
+  ) +
+  scale_color_gradient(low = "orange", high = "blue", name = "OC") +  # Continuous color gradient
+  annotate("text", x = 11, y = 0.13, label = "A", size = 10, fontface = "bold")
+
+ggsave(filename = "pH_Net_App_plot.png", plot = plot_all, width = 10, height = 8, dpi = 300)
+
+# Display the plot
+plot_all
+
+```
+
+```{r}
+
+# Apply the formatting from Q_Conc_Dose_Plot to plot_all
+plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_H_corrected, color = O_C)) +
+  geom_point(shape = 24, size = 6, stroke = 2, color = "black") +  # Match point size, shape, and outline
+  labs(
+    x = "pH",
+    y = "Net Apparent Proton Charge (mmolc /g biochar)"
+  ) +
+  theme_classic(base_size = 30) +  # Set base font size
+  theme(
+    text = element_text(family = "Helvetica"),  # Use the same font
+    legend.position = c(0.30, 0.87),  # Position the legend
+    axis.text.x = element_text(size = 26),  # Set font size for x-axis text
+    axis.text.y = element_text(size = 26),  # Set font size for y-axis text
+    axis.title.x = element_text(margin = margin(t = 20), size = 26),  # Set x-axis title with margin
+    axis.title.y = element_text(margin = margin(r = 20), size = 26),  # Set y-axis title with margin
+    panel.border = element_rect(color = "black", fill = NA, size = 3),  # Set panel border
+    legend.text = element_text(size = 22),  # Increase legend text size
+    legend.title = element_text(size = 26),  # Increase legend title size
+    legend.direction = "horizontal",  # Set legend direction
+    legend.key.width = unit(1.5, "cm"),  # Adjust legend key width
+    legend.box.margin = margin(t = 5, r = 8, b = 5, l = 5),  # Adjust legend box margin
+    legend.box.background = element_rect(color = "black", size = 2, linetype = "solid")  # Match legend box background
+  ) +
+  scale_color_gradient(low = "orange", high = "blue") +  # Color gradient matching first plot
+  guides(color = "none") +  # Remove the legend for color
+  scale_x_continuous(expand = c(0, 0)) +  # Adjust x-axis limits (no expansion)
+  scale_y_continuous(expand = c(0, 0))  # Adjust y-axis limits (no expansion)
+
+# Display the plot
+plot_all
+
+```
+
+```{r, warning=FALSE}
+
+plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_fin, color=O_C)) +
   geom_point(shape=16, size=5) +
   #scale_color_viridis()+
   labs(#title = "Combined Acid-Base Titration",
        x = "pH",
        y = "Net Apparent Proton Charge (mmolc /g biochar)") +
-    theme_bw()+
-      #eliminates background, gridlines, and chart border
-    theme(
-      panel.border = element_rect(color = "black", fill = NA, size = 3),
-      axis.text = element_text(color = "black", size = 24), 
-      axis.ticks = element_line(color = "black", size = 1),
-      axis.title = element_text(color = "black", size =24),
-        plot.background = element_blank()
-        ,panel.grid.major = element_blank()
-        ,panel.grid.minor = element_blank(),
-       legend.position = "none"  # Remove the legend
-    )+
-    scale_color_gradient(low = "purple", high = "yellow")
-plot_all    
-```
-
-###  \*\* Plot of all duplicated of both acid and base titrations per SSA
-
-```{r}
-# Select only the unique values of Type_ox and SSA from main_df
-main_df_unique <- main_df %>%
-  select(Type_ox, SSA) %>%
-  distinct()
-
-# Perform the left join to add SSA to ALL_no_AL
-ALL_no_AL <- ALL_no_AL %>%
-  select(-'SSA') %>%
-  left_join(main_df_unique, by = "Type_ox") %>%
-  mutate( net_app_m2 = net_app_H_corrected/SSA )
-
-plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_m2, color=O_C)) +
-  geom_point(shape=16, size=5) +
-  #scale_color_viridis()+
-  labs(#title = "Combined Acid-Base Titration",
-       x = "pH",
-       y = "Net Apparent Proton Charge (mmolc /m2 biochar)") +
     theme_bw()+
       #eliminates background, gridlines, and chart border
     theme(
@@ -452,44 +520,18 @@ titr_D_acid<-df_8%>%
 
 ```
 
-### Blank Correction
+### Net App at 3 and 11
 
 ```{r}
-blank_NaCl<- read.csv("Base_Acid_Separate_Titration/Water_Blank.csv")
 
+# Extracting the desired values
 
-correct_sample_pH <- function(sample_pH1, sample_pH2, sample_mol1, sample_mol2, blank_data) {
-  # Calculate the pH change in the sample titration
-  pH_change_sample <- sample_pH2 - sample_pH1
-  
-  # Find the interpolated pH values in the blank data for sample_pH1 and sample_pH2
-  interpolated_pH_blank <- spline(blank_data$mol_blank, blank_data$pH_blank, n = 1000)
-  pH_blank1 <- interpolated_pH_blank$y[which.min(abs(interpolated_pH_blank$x - sample_mol1))]
-  pH_blank2 <- interpolated_pH_blank$y[which.min(abs(interpolated_pH_blank$x - sample_mol2))]
-  
-  # Calculate the pH change in the blank titration
-  pH_change_blank <- pH_blank2 - pH_blank1
-  
-  # Calculate the portion of titrant used to change the blank's pH
-  fraction_used_in_blank <- pH_change_blank / pH_change_sample
-  
-  # Calculate the corrected pH in the sample
-  corrected_sample_pH2 <- sample_pH2 - pH_change_sample * fraction_used_in_blank
-  
-  return(corrected_sample_pH2)
-}
-
-# Example usage
-sample_pH1 <- 4
-sample_pH2 <- 5
-sample_mol1 <- 0.5
-sample_mol2 <- 0.6
-blank_data <- data.frame(
-  mol_blank = c(0.05, 0.1, 0.15, 0.2, 0.25),  # Add your blank data points
-  pH_blank = c(3, 3.4, 3.6, 3.8, 4.1)         # Corresponding pH measurements
-)
-
-corrected_sample_pH <- correct_sample_pH(sample_pH1, sample_pH2, sample_mol1, sample_mol2, blank_data)
+result <- df_8 %>%
+  filter(Sample == max(Sample)) %>%
+  group_by(SSN) %>%
+  summarise(net_app_fin = first(net_app_fin),
+            Type_ox =Type_ox
+            )
 
 ```
 
@@ -506,7 +548,7 @@ max_samples <- ALL_no_AL %>%
   group_by(SSN) %>%
   summarise(
     max_sample = max(Sample, na.rm = TRUE),
-    net_app_H_max = net_app_H[which.max(Sample)]
+    net_app_H_max = net_app_fin[which.max(Sample)]
   )
 
 
@@ -558,9 +600,9 @@ saveRDS(ALL_no_AL, "Titration_no_AL.RDS")
 
 ```{r}
 
-ALL_Biochars<-readRDS("/Users/soliverchefusi/Library/CloudStorage/OneDrive-Personal/Desktop/Fusi/Sorption/AK_to_AO_Isotherm/Isotherm/ALL_Biochars.RDS")
+ALL_Biochars<-readRDS("/Users/soliverchefusi/Library/CloudStorage/OneDrive-Personal/Desktop/Fusi/Sorption/AK_to_AO_Isotherm/Isotherm_2/ALL_Biochars.RDS")
 
-XPS_OC_may24 <- read_excel("/Users/soliverchefusi/Library/CloudStorage/OneDrive-Personal/Desktop/Fusi/Sorption/AK_to_AO_Isotherm/Isotherm/XPS_OC.xlsx")
+XPS_OC_may24 <- read_excel("/Users/soliverchefusi/Library/CloudStorage/OneDrive-Personal/Desktop/Fusi/Sorption/AK_to_AO_Isotherm/Isotherm_2/XPS_OC.xlsx")
 
  main_df_XPS <-  net_app_diff_df %>%
   left_join(
@@ -580,7 +622,7 @@ main_df <- main_df %>% distinct(Type_ox, .keep_all = TRUE)
 
 ```
 
-## Calculating dpH, dmol 
+## Calculating dpH, dmol
 
 ```{r}
 
@@ -600,6 +642,42 @@ df_8 <- df_8 %>%
 
 ```{r}
 library(RColorBrewer)
+```
+
+### \*\* Plot of all duplicated of both acid and base titrations per SSA
+
+```{r}
+# Select only the unique values of Type_ox and SSA from main_df
+main_df_unique <- main_df %>%
+  select(Type_ox, SSA) %>%
+  distinct()
+
+# Perform the left join to add SSA to ALL_no_AL
+ALL_no_AL <- ALL_no_AL %>%
+  select(-'SSA') %>%
+  left_join(main_df_unique, by = "Type_ox") %>%
+  mutate( net_app_m2 = net_app_H_corrected/SSA )
+
+plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_m2, color=O_C)) +
+  geom_point(shape=16, size=5) +
+  #scale_color_viridis()+
+  labs(#title = "Combined Acid-Base Titration",
+       x = "pH",
+       y = "Net Apparent Proton Charge (mmolc /m2 biochar)") +
+    theme_bw()+
+      #eliminates background, gridlines, and chart border
+    theme(
+      panel.border = element_rect(color = "black", fill = NA, size = 3),
+      axis.text = element_text(color = "black", size = 24), 
+      axis.ticks = element_line(color = "black", size = 1),
+      axis.title = element_text(color = "black", size =24),
+        plot.background = element_blank()
+        ,panel.grid.major = element_blank()
+        ,panel.grid.minor = element_blank(),
+       legend.position = "none"  # Remove the legend
+    )+
+    scale_color_gradient(low = "purple", high = "yellow")
+plot_all  
 ```
 
 ```{r}
@@ -1386,7 +1464,7 @@ df_9 <-df_8 %>%
   filter (Type != "AL")
 ```
 
-## \*\* dpH vs. d mol no AL 
+## \*\*\* dpH vs. d mol no AL
 
 ```{r}
 df_9 <-df_8 %>%
@@ -1397,29 +1475,34 @@ df_9 <-df_8 %>%
 
 plot_all_dpH <- ggplot(df_9, aes(x = pH, y = dpH_dmol, group = SSN, color = O_C)) +
   geom_point() +
-  geom_path(aes(group = SSN), size = 1) +
+  geom_path(aes(group = SSN), size = ) +
   labs(
     x = "pH",
     y = "ΔpH / Δ mol titrant a.u.",
     color = "OC"
   ) +
-  theme_bw() +
+  theme_classic(base_size = 30) +  # Increased base font size by 2 points
   theme(
-    panel.border = element_rect(color = "black", fill = NA, size = 3),
-    axis.text.x = element_text(color = "black", size = 24),
+    text = element_text(family = "Helvetica"),  # Changed font to sans-serif
+    legend.position = c(0.68, 0.75),  
     axis.text.y = element_blank(),  # Remove y-axis text
     axis.ticks.y = element_blank(),  # Remove y-axis ticks
-    axis.ticks.x = element_line(color = "black", size = 1),
-    axis.title = element_text(color = "black", size = 24),
-    plot.background = element_blank(),
-    panel.grid.major = element_blank(),
-    panel.grid.minor = element_blank(),
-    legend.position = c(0.1, 0.8),  # Position the legend inside the plot
-    legend.direction = "vertical",  # Rotate legend horizontally
-    legend.text = element_text(size = 20),  # Adjust legend text size
-    legend.title = element_text(size = 20, hjust = 0.5)  # Adjust legend title size
+    axis.title.x = element_text(margin = margin(t = 20), size = 26),
+    axis.title.y = element_text(margin = margin(r = 20), size = 26),
+    panel.border = element_rect(color = "black", fill = NA, size = 3),
+    legend.text = element_text(size = 22),  # Increased font size
+    legend.title = element_text(size = 26),
+    legend.direction = "horizontal",
+    legend.key.width = unit(1.5, "cm"),
+    legend.box.margin = margin(t = 5, r = 8, b = 5, l = 5),
+    legend.box.background = element_rect(color = "black", size = 2, linetype = "solid")
   ) +
-  scale_color_gradient(low = "purple", high = "yellow")
+    theme(legend.position = "none") +
+  scale_color_gradient(low = "orange", high = "blue") +
+  annotate("text", x = 11, y = 8e05, label = "B", size = 10, fontface = "bold")
+
+ggsave(filename = "dpH_pH_plot.png", plot = plot_all_dpH, width = 10, height = 8, dpi = 300)
+
 plot_all_dpH 
 
 ```
