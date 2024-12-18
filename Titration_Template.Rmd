@@ -235,6 +235,17 @@ Ions_1 <- Ions_1 %>% filter(SSN != "MQ") %>%
 
 ```
 
+#### 3rd Dec 2024 edit
+
+corecting single replicate for AO20
+
+```{r}
+
+# Add a new row to the Ions_1 dataframe
+Ions_1 <- rbind(Ions_1, data.frame(SSN = "AO20A", Cl_mg_L = 12495.657069999999))
+
+```
+
 Converting Units from mg/L to mol Cl
 
 ```{r}
@@ -407,7 +418,7 @@ ALL_no_AL<-df_8 %>%
 
 ```
 
-## \*\*\* Plot of all duplicated of both acid and base titrations
+## \*\*\* (Final) Plot of all duplicated of both acid and base titrations
 
 ```{r, warning=FALSE}
 
@@ -596,6 +607,71 @@ saveRDS(ALL_no_AL, "Titration_no_AL.RDS")
 
 ```
 
+### 17th December Edits to Address Reviewer Comments 
+
+\*\* edits: noted A010 instead of AO10 resulting in NA's
+
+\*\* AO20A - used replicate data AO20B such that it registers just 1 replicate.
+
+```{r}
+
+##remove AL 10 since no acid titration 
+
+df_8 <- df_8[!(df_8$SSN %in% c("AL_10_A_BASE", "AL_10_B_BASE")), ]
+
+# Find the maximum sample number for each group
+max_samples_1 <- df_8 %>%
+  group_by(SSN) %>%
+  summarise(
+    max_sample = max(Sample, na.rm = TRUE),
+    net_app_H_max = net_app_fin[which.max(Sample)]
+  )
+
+
+max_samples_1  <- max_samples_1  %>%
+  mutate(
+    Type_ox = gsub("_[A-D]_[A-Z]+$", "", SSN)  # Extract the common part of SSN
+    #group_num = as.numeric(gsub("[^0-9]", "", SSN))  # Extract the numeric part of SSN
+  )
+
+# net apparent difference between acid and base 
+net_app_diff_df_1 <- max_samples_1 %>%
+  group_by(Type_ox) %>%
+  filter(grepl("_C_ACID", SSN) | grepl("_A_BASE", SSN)) %>%
+  summarise(
+    net_app_H_diff_C_A = net_app_H_max[grepl("_C_ACID", SSN)] -
+                      net_app_H_max[grepl("_A_BASE", SSN)]
+  )
+
+net_app_diff_df_1  <- net_app_diff_df_1  %>%
+  left_join(
+    max_samples_1 %>%
+      group_by(Type_ox) %>%
+      filter(grepl("_D_ACID", SSN) | grepl("_B_BASE", SSN)) %>%
+      summarise(
+        net_app_H_diff_D_B = net_app_H_max[grepl("_D_ACID", SSN)] -
+                          net_app_H_max[grepl("_B_BASE", SSN)]
+      ),
+    by = "Type_ox"
+  )
+
+net_app_diff_df_1  <- net_app_diff_df_1 %>%
+  mutate(net_app_H_diff_avg_abs = abs(rowMeans(select(., starts_with("net_app_H_diff")), na.rm = TRUE)))
+
+# net apparent difference with just acid 
+
+
+
+ ALL_titration_dec_2024 <-  df_8 %>%
+  left_join(
+    net_app_diff_df  %>%
+      group_by(Type_ox)
+  )
+
+saveRDS(ALL_titration_dec_2024, "Titration_ALL.RDS")
+
+```
+
 #### Combining with main Isotherm DF
 
 ```{r}
@@ -644,7 +720,7 @@ df_8 <- df_8 %>%
 library(RColorBrewer)
 ```
 
-### \*\* Plot of all duplicated of both acid and base titrations per SSA
+### \*\* (Final) Plot of all duplicated of both acid and base titrations per SSA
 
 ```{r}
 # Select only the unique values of Type_ox and SSA from main_df
@@ -658,7 +734,7 @@ ALL_no_AL <- ALL_no_AL %>%
   left_join(main_df_unique, by = "Type_ox") %>%
   mutate( net_app_m2 = net_app_H_corrected/SSA )
 
-plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_m2, color=O_C)) +
+plot_all_SSA <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_m2, color=O_C)) +
   geom_point(shape=16, size=5) +
   #scale_color_viridis()+
   labs(#title = "Combined Acid-Base Titration",
@@ -667,6 +743,7 @@ plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_m2, color=O_C)) +
     theme_bw()+
       #eliminates background, gridlines, and chart border
     theme(
+      text = element_text(family = "Helvetica"),
       panel.border = element_rect(color = "black", fill = NA, size = 3),
       axis.text = element_text(color = "black", size = 24), 
       axis.ticks = element_line(color = "black", size = 1),
@@ -676,8 +753,11 @@ plot_all <- ggplot(ALL_no_AL, aes(x = pH, y = net_app_m2, color=O_C)) +
         ,panel.grid.minor = element_blank(),
        legend.position = "none"  # Remove the legend
     )+
-    scale_color_gradient(low = "purple", high = "yellow")
-plot_all  
+    scale_color_gradient(low = "orange", high = "blue")
+
+ggsave(filename = "Net_App_SSA_plot.png", plot = plot_all_SSA, width = 10, height = 8, dpi = 300)
+
+plot_all_SSA  
 ```
 
 ```{r}
@@ -1464,7 +1544,7 @@ df_9 <-df_8 %>%
   filter (Type != "AL")
 ```
 
-## \*\*\* dpH vs. d mol no AL
+## \*\*\* (Final) dpH vs. d mol no AL
 
 ```{r}
 df_9 <-df_8 %>%
